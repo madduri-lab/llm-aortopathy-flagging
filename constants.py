@@ -13,9 +13,9 @@ from langchain.document_loaders import UnstructuredHTMLLoader
 ROOT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 
 # Define the folder for storing database
-SOURCE_DIRECTORY = f"{ROOT_DIRECTORY}/SOURCE_DOCUMENTS"
+SOURCE_DIRECTORY = f"{ROOT_DIRECTORY}/data/docs"
 
-PERSIST_DIRECTORY = f"{ROOT_DIRECTORY}/DB"
+PERSIST_DIRECTORY = f"{ROOT_DIRECTORY}/data/db"
 
 MODELS_PATH = "./models"
 

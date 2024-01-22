@@ -65,8 +65,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     ROOT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 
-    SOURCE_DIR = f"{ROOT_DIRECTORY}/DATA/RAW"
-    TARGET_DIR = f"{ROOT_DIRECTORY}/DATA/RAG"
+    SOURCE_DIR = f"{ROOT_DIRECTORY}/data/datasets/raw"
+    TARGET_DIR = f"{ROOT_DIRECTORY}/data/datasets/rag"
     #Test code below
     db = retrieval_DB(args.device_type)
     add_context_to_json(SOURCE_DIR, TARGET_DIR, db)

@@ -1,0 +1,5 @@
+{
+    "Q": "What is the main contribution of the RA-DIT algorithm?",
+    "A": "PLACEHOLDER",
+    "Context": "\u2217Equal contribution\n\n1\n\nRA-DIT: Retrieval-Augmented Dual Instruction Tuning\n\nFigure 1: The RA-DIT approach separately fine-tunes the LLM and the retriever. For a given exam- ple, the LM-ft component updates the LLM to maximize the likelihood of the correct answer given the retrieval-augmented instructions (\u00a72.3); the R-ft component updates the retriever to minimize the KL-Divergence between the retriever score distribution and the LLM preference (\u00a72.4)"
+}
