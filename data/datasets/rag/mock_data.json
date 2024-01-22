@@ -1,5 +1,22 @@
-{
-    "Q": "What is the main contribution of the RA-DIT algorithm?",
-    "A": "PLACEHOLDER",
-    "Context": "\u2217Equal contribution\n\n1\n\nRA-DIT: Retrieval-Augmented Dual Instruction Tuning\n\nFigure 1: The RA-DIT approach separately fine-tunes the LLM and the retriever. For a given exam- ple, the LM-ft component updates the LLM to maximize the likelihood of the correct answer given the retrieval-augmented instructions (\u00a72.3); the R-ft component updates the retriever to minimize the KL-Divergence between the retriever score distribution and the LLM preference (\u00a72.4)"
-}
+[
+    {
+        "Q": "What is the main contribution of the RA-DIT algorithm?",
+        "A": "PLACEHOLDER",
+        "Context": "\u2217Equal contribution\n\n1\n\nRA-DIT: Retrieval-Augmented Dual Instruction Tuning\n\nFigure 1: The RA-DIT approach separately fine-tunes the LLM and the retriever. For a given exam- ple, the LM-ft component updates the LLM to maximize the likelihood of the correct answer given the retrieval-augmented instructions (\u00a72.3); the R-ft component updates the retriever to minimize the KL-Divergence between the retriever score distribution and the LLM preference (\u00a72.4)"
+    },
+    {
+        "Q": "What is the main contribution of the RA-DIT algorithm?",
+        "A": "PLACEHOLDER",
+        "Context": "7 CONCLUSION\n\nIn this paper, we propose RA-DIT, a lightweight Retrieval-Augmented Dual Instruction Tuning framework that can effectively retrofit any pre-trained LLM with retrieval capabilities. RA-DIT updates the LLM with retrieval-augmented instruction tuning to make better use of retrieved knowl- edge and ignore irrelevant or distracting information. It also fine-tunes the retriever with supervi- sion from the LLM to retrieve texts that can better help the LLM generate correct outputs. RA- DIT achieves state-of-the-art performance in zero- and few-shot evaluations on knowledge intensive benchmarks, surpassing un-tuned in-context RALM approaches such as REPLUG and compete ef- fectively against methods that require extensive pre-training such as ATLAS.\n\nREFERENCES"
+    },
+    {
+        "Q": "How does ensemble work in RePlug?",
+        "A": "PLACEHOLDER",
+        "Context": "gains of REPLUG do not solely come from the ensembling effect. Instead, ensembling the relevant docu- ments is crucial for the success of REPLUG. Additionally, as more documents were ensembled, the performance of REPLUG and REPLUG LSR improved monotonically. How- ever, a small number of documents (e.g., 10) was sufficient to achieve large performance gains."
+    },
+    {
+        "Q": "How does ensemble work in RePlug?",
+        "A": "PLACEHOLDER",
+        "Context": "In this work, we introduce REPLUG (Retrieve and Plug), a new retrieval-augmented LM framework where the lan- guage model is viewed as a black box and the retrieval component is added as a tuneable plug-and-play module. Given an input context, REPLUG first retrieves relevant documents from an external corpus using an off-the-shelf retrieval model. The retrieved documents are prepended to the input context and fed into the black-box LM to make the final prediction. Because the LM context length limits the number of documents that can be prepended, we also introduce a new ensemble scheme that encodes the retrieved documents in parallel with the same black-box LM, allow- ing us to easily trade compute for accuracy. As shown in\n\nREPLUG: Retrieval-Augmented Black-Box Language Models\n\nFigure 1, REPLUG is extremely flexible and can be used with any existing black-box LM and retrieval model."
+    }
+]
