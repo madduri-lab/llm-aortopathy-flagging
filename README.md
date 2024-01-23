@@ -11,8 +11,28 @@ conda create -n marfan-llm
 conda activate marfan-llm
 pip install -r requirement.txt
 ```
-### Data Preparation
-- Put source pdf documents into folder `data/docs`
+
+### MIMIC Data Download
+- To utilize the [MIMIC dataset](https://physionet.org/content/mimic-iv-note/2.2/), please first make sure that you have access to the dataset by filling the applications and finishing the required training sessions. 
+- Then run the following commands first to download the dataset into the `data/datasets/raw` folder. Make sure to replace `USERNAME` with your own PhysioNet username.
+```bash
+cd data/datasets/raw
+wget -r -N -c -np --user USERNAME --ask-password https://physionet.org/files/mimic-iv-note/2.2/
+cd physionet.org/files/mimic-iv-note/2.2/note && gunzip discharge.csv.gz
+```
+
+### MIMIC DATA Preprocess
+To run the preprocess to the MIMIC dataset to extract notes for Marfan cases and controls, you can run the following `mimic_process.py` script in `data/datasets/raw` 
+```bash
+python mimic_process.py
+```
+
+### Marfan Syndrome Research Papers Download
+- You can download all research papers related to Marfan Syndrome for retrieval from [Google Drive](https://drive.google.com/file/d/1vBWAB6tM0y0VUJ-cOQ3i9oMW9JEPFZdG/view?usp=share_link). 
+- Then put all those PDF files into folder `data/docs`
+
+
+### Mock Data Preparation
 - Put the labeled training json files into folder `data/datasets/raw`
 - Run `python ingest.py` first to setup local index DB.
 - Run `python run_retriever.py` to get the retrival-augmented training json files into `data/datasets/rag`

@@ -1,4 +1,6 @@
-# Index
+# data
+data/docs/*.pdf
+data/datasets/raw/physionet.org
 data/db
 # Byte-compiled / optimized / DLL files
 __pycache__/
