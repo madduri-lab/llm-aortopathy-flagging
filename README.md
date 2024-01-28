@@ -9,7 +9,7 @@
 ```bash
 conda create -n marfan-llm
 conda activate marfan-llm
-pip install -r requirement.txt
+pip install -r requirements.txt
 ```
 
 ### MIMIC Data Download

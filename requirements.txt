@@ -7,7 +7,6 @@ InstructorEmbedding
 sentence-transformers
 faiss-cpu
 huggingface_hub
-transformers
 autoawq; sys_platform != 'darwin'
 protobuf==3.20.2; sys_platform != 'darwin'
 protobuf==3.20.2; sys_platform == 'darwin' and platform_machine != 'arm64'
@@ -32,3 +31,17 @@ Streamlit-extras
 
 # Excel File Manipulation
 openpyxl
+
+torch>=2.0.1
+appdirs
+loralib
+black
+black[jupyter]
+datasets
+fire
+peft
+transformers>=4.31.0
+sentencepiece
+py7zr
+scipy
+optimum
