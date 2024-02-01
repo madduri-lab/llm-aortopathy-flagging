@@ -9,10 +9,10 @@ from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_tr
 import time
 
 parser = argparse.ArgumentParser()  
-parser.add_argument("--model_name", type=str, default="/projects/bbke/zl52/llama2/llama/models_hf/13B")
+parser.add_argument("--model_name", type=str, default="/scratch/bcdz/zl52/llama/7B")
 parser.add_argument("--train_data_path", type=str, default="./data/raw_data/data_cb.json")
 parser.add_argument("--validation_data_path", type=str, default="./data/raw_data/data_cb_val.json")
-parser.add_argument("--output_name", type=str, default="./model/cb/lora_13B.pt")
+parser.add_argument("--output_name", type=str, default="./model/cb/lora_7B.pt")
 parser.add_argument("--max_words", type=int, default=224, help="Maximum number of tokens for the input.")
 parser.add_argument("--batch_size_training", type=int, default=4)
 parser.add_argument("--batch_size_validation", type=int, default=4)

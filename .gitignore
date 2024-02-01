@@ -1,3 +1,6 @@
+*.pt
+data/raw_data
+
 # data
 data/docs/*.pdf
 data/datasets/raw/physionet.org
