@@ -4,7 +4,7 @@
     <b>Marfan Syndrome Specific LLM - Finetuned from LLaMA 2</b>
 </p>
 
-## Quick Start
+## 📚 Quick Start
 ### Environment Setup
 ```bash
 conda create -n marfan-llm
@@ -36,6 +36,28 @@ python mimic_process.py
 - Put the labeled training json files into folder `data/datasets/raw`
 - Run `python ingest.py` first to setup local index DB.
 - Run `python run_retriever.py` to get the retrival-augmented training json files into `data/datasets/rag`
+
+## 🦙 Download LLaMa 2
+1. To download LLaMa v2, first fill this [request form](https://ai.meta.com/resources/models-and-libraries/llama-downloads/) and obtain a download url via email.
+
+2. Clone the llama repository.
+    ```bash
+    git clone https://github.com/facebookresearch/llama.git && cd llama
+    ```
+
+3. Run the download script, and you will need to provide the download url and choose the model size and type. The following instructions assume downloading 7B-chat version. **[Note: for this project, I am not sure which one is better, 7B or 7B-chat]**
+    ```bash
+    ./download.sh
+    ```
+
+4. Now we run the following two commands to convert the downloaded Llama model weights to HuggingFace weights to employ HuggingFace API for fine-tuning and evaluation later. [**Note**: When downloading Llama v2 7B-chat, the model will be downloaded into a folder named `llama-7b-chat`. We need to first rename the folder to `7B` by running `mv llama-7b-chat 7B`.]
+    ```bash
+    TRANSFORM=`python -c "import transformers;print('/'.join(transformers.__file__.split('/')[:-1])+'/models/llama/convert_llama_weights_to_hf.py')"`
+    ```
+    ```
+    python ${TRANSFORM} --input_dir /path/to/downloaded/llama/weights --model_size 7B --output_dir /output/path
+    ```
+
 
 ## Ideas
 Now the idea is adopted from the following paper from META AI.
