@@ -128,6 +128,7 @@ def main(device_type):
         model_name=EMBEDDING_MODEL_NAME,
         model_kwargs={"device": device_type},
     )
+    logging.info("Finish creating the embeddings")
 
     db = Chroma.from_documents(
         texts,
@@ -135,6 +136,7 @@ def main(device_type):
         persist_directory=PERSIST_DIRECTORY,
         client_settings=CHROMA_SETTINGS,
     )
+    logging.info("Finish creating the database")
 
 if __name__ == "__main__":
     logging.basicConfig(
