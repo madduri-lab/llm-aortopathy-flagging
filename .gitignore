@@ -1,4 +1,6 @@
 *.pt
+*.sh
+slurm*
 data/raw_data
 
 # data
