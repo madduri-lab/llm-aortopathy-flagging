@@ -50,4 +50,12 @@ python ingest.py
 python preprocess.py
 ```
 
-[**Note**: `finetune.py` script may NOT be needed as we do not plan to do supervised fine-tuning now.]
+## Supervised fine-tuning on Marfan Notes
+```bash
+python finetune.py --output_name ./model/marfan_prediction/lora_7B.pt --dataset_type ClinicalNoteDataset --train_data_path ./data/datasets/rag/marfan_rag_train.json --validation_data_path ./data/datasets/rag/marfan_rag_test.json --batch_size_training 4 --batch_size_validation 1 --lr 1e-4 --weight_decay 0.01 --gamma 0.95 --num_epochs 1
+```
+
+## 📖 Unsupervised fine-tuning on raw text
+```bash
+python finetune.py --output_name ./model/marfan/lora_7B.pt --dataset_type RawTextDataset --train_data_path ./data/datasets/raw/sample_train.txt --validation_data_path ./data/datasets/raw/sample_test.txt --max_tokens 4096 --is_ntp --batch_size_training 4 --batch_size_validation 1 --lr 2e-5 --weight_decay 0.01 --gamma 0.95 --num_epochs 1
+```

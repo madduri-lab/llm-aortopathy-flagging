@@ -5,17 +5,18 @@ class train_config:
     model_name = "/projects/bbke/zl52/llama2/llama/models_hf/13B"
     train_data_path = "./data/raw_data/data_cb.json"
     validation_data_path = "./data/raw_data/data_cb_val.json"
-    max_words = 224
+    max_tokens = 224
     batch_size_training = 4
     batch_size_validation = 4
     lr = 1e-4
     gradient_accumulation_steps = 1
     num_epochs: int = 3
     gamma: float = 0.85
+    weight_decay: float = 0.01
     output_name: str = "./model/cb/lora.pt"
     save_model: bool = True
     device: str = "cuda"
-    run_validation: bool = True
+    run_validation: bool = False
     max_train_batches: int = -1
     max_val_batches: int = -1
 
