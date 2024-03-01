@@ -23,7 +23,7 @@ start_line = 1
 end_line = 5000
 
 # Open the file containing PMC IDs and read the specified range of lines
-with open('PMC_IDs.txt', 'r') as file:
+with open('PMCIDs_processed.txt', 'r') as file:
     ids = [line.strip() for line in file.readlines()[start_line - 1:end_line]]
 
 start_time = time.time()  # Start the timer for total download time
