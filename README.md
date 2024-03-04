@@ -52,7 +52,7 @@ python preprocess.py
 
 ## Supervised fine-tuning on Marfan Notes
 ```bash
-python finetune.py --output_name ./model/marfan_prediction/lora_7B.pt --dataset_type ClinicalNoteDataset --train_data_path ./data/datasets/rag/marfan_rag_train.json --validation_data_path ./data/datasets/rag/marfan_rag_test.json --batch_size_training 4 --batch_size_validation 1 --lr 1e-4 --weight_decay 0.01 --gamma 0.95 --num_epochs 1
+python finetune.py --output_name ./model/marfan_prediction/lora_7B.pt --dataset_type ClinicalNoteDataset --train_data_path ./data/datasets/rag/marfan_rag_train.json --validation_data_path ./data/datasets/rag/marfan_rag_test.json --batch_size_training 1 --batch_size_validation 1 --lr 1e-4 --weight_decay 0.01 --gamma 0.95 --num_epochs 1 --gradient_accumulation_steps 2
 ```
 
 ## 📖 Unsupervised fine-tuning on raw text

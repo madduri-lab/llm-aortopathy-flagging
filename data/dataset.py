@@ -44,6 +44,63 @@ class RawTextDataset(Dataset):
             for k in self.datasets.keys()
         }
 
+class ClinicalNoteDataset(Dataset):
+    def __init__(self, data_path, tokenizer, max_tokens=-1, inference=False):
+        self.inference = inference
+        self.tokenizer = tokenizer
+        self.notes = json.load(open(data_path))
+        self.two_shot_note = self.notes[0:2]
+        self.notes = self.notes[2:]
+        self.prompt = (
+            "Patient Clinical Note Summary:\n\n{note_summary}"
+            "\n\nAccording to the above patient clinical note and the following information, please determine if the patient if a case or control for Marfan Syndrome (MFS):\n\n"
+            "Additional Information:\n\n{note_context}\n\n"
+            "Answer:\n"
+        )
+        self.shot = (
+            self.prompt.format_map(self.two_shot_note[0]) + self.two_shot_note[0]["note_label"]
+            + "\n\n==================================================\n\n"
+            + self.prompt.format_map(self.two_shot_note[1]) + self.two_shot_note[1]["note_label"]
+            + "\n\n==================================================\n\n"
+        )
+
+    def __len__(self):
+        return len(self.notes)
+
+    def __getitem__(self, index):
+        if not self.inference:
+            prompt = self.shot + self.prompt.format_map(self.notes[index])
+            labeled_prompt = prompt + self.notes[index]["note_label"]
+            prompt = torch.tensor(
+                self.tokenizer.encode(prompt), dtype=torch.int64
+            )
+            labeled_prompt = self.tokenizer.encode(labeled_prompt)
+            labeled_prompt.append(self.tokenizer.eos_token_id)
+            labeled_prompt = torch.tensor(
+                labeled_prompt, dtype=torch.int64
+            )
+            labels = copy.deepcopy(labeled_prompt)
+            labels[:len(prompt)] = -100
+            attention_mask = labeled_prompt.ge(0)
+            attention_mask = attention_mask.float()
+            return {
+                "input_ids": labeled_prompt,
+                "labels": labels,
+                "attention_mask": attention_mask,
+            }
+        else:
+            prompt = self.shot + self.prompt.format_map(self.notes[index])
+            prompt = torch.tensor(
+                self.tokenizer.encode(prompt), dtype=torch.int64
+            )
+            attention_mask = prompt.ge(0)
+            attention_mask = attention_mask.float()
+            return {
+                "input_ids": prompt,
+                "labels": torch.tensor(self.tokenizer.encode(self.notes[index]["note_label"])[1:]),
+                "attention_mask": attention_mask,
+            }
+
 class AlpacaDataset(Dataset):
     def __init__(self, data_path, tokenizer, max_tokens=224):
         self.instructions = json.load(open(data_path))
