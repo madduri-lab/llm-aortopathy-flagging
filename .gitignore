@@ -2,6 +2,7 @@
 *.sh
 slurm*
 data/raw_data
+data/docs/*/
 
 # data
 data/docs/*.pdf

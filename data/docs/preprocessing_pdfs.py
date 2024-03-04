@@ -1,6 +1,13 @@
-import fitz  # PyMuPDF
 import re
 import os
+import fitz
+import pathlib
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--input_dirname", type=str, default="./SOURCE_DOCUMENTS")
+parser.add_argument("--output_dirname", type=str, default="./SOURCE_DOCUMENTS_TXT")
+args = parser.parse_args()
 
 def remove_sections(text, start_markers, end_markers):
     for start_marker in start_markers:
@@ -24,18 +31,22 @@ def extract_text_from_pdf(pdf_path, output_txt_path):
         end_markers = ['\n', '\f', '\r']
 
         # Remove specified sections
-        extracted_text = remove_sections(extracted_text, start_markers, end_markers)
+        # extracted_text = remove_sections(extracted_text, start_markers, end_markers)
 
         with open(output_txt_path, "w", encoding="utf-8") as output_file:
             output_file.write(extracted_text)
 
-def process_all_pdfs_in_directory(directory_path):
-    for filename in os.listdir(directory_path):
+def process_all_pdfs_in_directory(input_dirname, output_dirname):
+    if not os.path.exists(output_dirname):
+        pathlib.Path(output_dirname).mkdir(parents=True, exist_ok=True)
+    for filename in os.listdir(input_dirname):
         if filename.endswith('.pdf'):
-            pdf_path = os.path.join(directory_path, filename)
-            output_txt_path = os.path.join(directory_path, filename.replace('.pdf', '.txt'))
+            pdf_path = os.path.join(input_dirname, filename)
+            output_txt_path = os.path.join(output_dirname, filename.replace('.pdf', '.txt'))
             extract_text_from_pdf(pdf_path, output_txt_path)
 
 # Specify the directory containing the PDF files
-directory_path = "/Users/pankhurisinghal/Desktop/Marfan_LLM_Proj/Webscraping_RAG/preprocessing_pdfs"
-process_all_pdfs_in_directory(directory_path)
+process_all_pdfs_in_directory(
+    args.input_dirname,
+    args.output_dirname,
+)
