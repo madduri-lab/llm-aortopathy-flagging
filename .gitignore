@@ -1,8 +1,9 @@
 *.pt
 *.sh
+*.zip
 slurm*
 data/raw_data
-data/docs/*/
+data/docs/SOURCE_DOCUMENTS*/
 
 # data
 data/docs/*.pdf
