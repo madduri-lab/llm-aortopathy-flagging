@@ -1,8 +1,6 @@
 """
 Process the xml files output by GROBID.
 """
-
-import os
 import json
 import pathlib
 import logging
@@ -40,12 +38,16 @@ def process_paragraph(paragraph: Union[str, Dict, List]) -> str:
     elif isinstance(paragraph, list):
         return "\n".join(process_paragraph(sub_paragraph) for sub_paragraph in paragraph)
 
-def process_section(section: Dict) -> Optional[Tuple[str, str]]:
+def process_section(section: Union[Dict, str]) -> Optional[Tuple[str, str]]:
     """Process a section of the paper. Return the section header and the paragraph(s) in the section."""
+    if isinstance(section, str):
+        return NO_HEADER, section
     if not "p" in section:
         return None
     if "head" in section:
         head = section["head"]
+        if isinstance(head, dict):
+            head = head["#text"]
     else:
         head = NO_HEADER
     paragraph = process_paragraph(section["p"])
@@ -58,13 +60,21 @@ def parse_xml(xml_file_path: str, json_file_path: str):
     parsed_data = []
     # process the header (title and abstract)
     header = dict_data["teiHeader"]
-    parsed_data.append({
-        "Title": header["fileDesc"]["titleStmt"]["title"]["#text"]
-    })
-    parsed_data.append({
-        "Abstract": process_abstract(header["profileDesc"]["abstract"]["div"])
-    })
+    try:
+        parsed_data.append({
+            "Title": header["fileDesc"]["titleStmt"]["title"]["#text"]
+        })
+    except KeyError:
+        pass
+    try:
+        parsed_data.append({
+            "Abstract": process_abstract(header["profileDesc"]["abstract"]["div"])
+        })
+    except:
+        pass
     # process the body
+    if dict_data["text"]["body"] is None:
+        return
     body = dict_data["text"]["body"]["div"]
     for section in body:
         section = process_section(section)
