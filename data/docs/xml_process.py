@@ -1,6 +1,7 @@
 """
 Process the xml files output by GROBID.
 """
+import os
 import json
 import pathlib
 import logging
