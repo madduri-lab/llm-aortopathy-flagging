@@ -1,12 +1,16 @@
 *.pt
 *.sh
+*.txt
 !grobid.sh
 *.zip
 slurm*
 data/raw_data
 data/docs/SOURCE_DOCUMENTS*/
 data/docs/json/
-data/docs/corpus.txt
+!data/docs/PMCIDs_processed.txt
+!data/docs/README.txt
+!data/docs/requirements.txt
+!requirements.txt
 # data
 data/docs/*.pdf
 data/datasets/raw/physionet.org

@@ -35,7 +35,7 @@ class eval_config:
     temperature: float = 1.0
     top_k: int = 50
     repetition_penalty: float = 1.0
-    length_penalty: int = 1
+    length_penalty: float = 1.0
     reproducible: bool = True
     seed: int = 42 # For reproducibility
     device: str = "cuda"
