@@ -24,6 +24,7 @@ parser.add_argument("--use_cache", type=str, default="True", choices=["True", "F
 parser.add_argument("--reproducible", type=str, default="True", choices=["True", "False"])
 parser.add_argument("--max_new_tokens", type=int, default=1500, help="Maximum numbers of tokens to generate.")
 parser.add_argument("--length_penalty", type=float, default=1)
+parser.add_argument("--temp", type=float, default=1)
 
 args = parser.parse_args()
 
@@ -47,6 +48,7 @@ eval_config.use_cache = True if args.use_cache == "True" else False
 eval_config.reproducible = True if args. reproducible == "True" else False
 eval_config.max_new_tokens = args.max_new_tokens
 eval_config.length_penalty = args.length_penalty
+eval_config.temperature = args.temp
 
 if eval_config.reproducible:
     torch.cuda.manual_seed(eval_config.seed)
