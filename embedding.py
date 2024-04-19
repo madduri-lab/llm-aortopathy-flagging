@@ -20,13 +20,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--model_name", 
     type=str, 
-    default="meta-llama/Meta-Llama-3-70B", 
+    default="meta-llama/meditron-7b", 
     choices=[
         "epfl-llm/meditron-7b",
         "epfl-llm/meditron-70b",
         "meta-llama/Llama-2-7b-hf",
         "meta-llama/Llama-2-13b-hf",
-        "meta-llama/Llama-2-13b-hf",
+        "meta-llama/Llama-2-70b-hf",
         "meta-llama/Meta-Llama-3-8B", 
         "meta-llama/Meta-Llama-3-70B",
         "mistralai/Mistral-7B-v0.1", 
@@ -37,7 +37,8 @@ parser.add_argument(
 parser.add_argument("--use_lora", type=str, default="True", choices=["True", "False"])
 parser.add_argument("--lora_name", type=str, default="./model/marfan/mistral.pt")
 parser.add_argument("--log_file", type=str, default="llama-embedding.txt")
-parser.add_argument("--embedding_dir", type=str, default="./embedding/llama-3-8B")
+parser.add_argument("--embedding_dir", type=str, default="./embedding/meditron-7b")
+parser.add_argument("--cluster_file", type=str, default="meditron-7b.pdf")
 parser.add_argument("--device", type=str, default="cuda")
 
 ## data
@@ -180,7 +181,7 @@ with open(f'{args.embedding_dir}/all_classes.pkl', 'wb') as file:
 # TSNE dimention reduction visualization
 reduced = TSNE(n_components=2, random_state=0).fit_transform(X)
 plt.scatter(reduced[:, 0], reduced[:, 1], c=all_classes, cmap='rainbow')
-plt.savefig(f"{args.embedding_dir}/test_llama3_70b.pdf")
+plt.savefig(f"{args.embedding_dir}/{args.cluster_file}")
 
 scaler = StandardScaler()
 train_x = scaler.fit_transform(X_train)
