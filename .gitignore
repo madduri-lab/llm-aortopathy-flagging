@@ -1,3 +1,11 @@
+embedding/
+tmp/
+!.data/datasets/raw/marfan_notes.json
+!.data/datasets/raw/marfan_train_notes.json
+!.data/datasets/raw/marfan_val_notes.json
+*.out
+*.json
+*.pdf
 *.pt
 *.sh
 *.txt
@@ -15,6 +23,7 @@ data/docs/json/
 data/docs/*.pdf
 data/datasets/raw/physionet.org
 data/db
+data/db-new
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
