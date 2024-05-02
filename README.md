@@ -59,3 +59,16 @@ python finetune.py --output_name ./model/marfan_prediction/lora_7B.pt --dataset_
 ```bash
 python finetune.py --output_name ./model/marfan/lora_7B.pt --dataset_type RawTextDataset --train_data_path ./data/datasets/raw/sample_train.txt --validation_data_path ./data/datasets/raw/sample_test.txt --max_tokens 4096 --is_ntp --batch_size_training 4 --batch_size_validation 1 --lr 2e-5 --weight_decay 0.01 --gamma 0.95 --num_epochs 1
 ```
+
+
+## Notes
+
+1. auc.py: use saved embeddings to plot auc curve
+2. download_model_from_hf.py: download model from huggingface
+3. easy_inference.py: interactive inference
+4. embedding.py: generate notes embeddings using different models (with optional lora weights)
+5. finetune_general.py: finetune all types of models
+6. inference_note: do non-interactive inference on a list of notes in a json file
+7. note_extraction.py: extract notes from csv to marfan_notes.json, marfan_train_notes.json, marfan_val_notes.json
+8. note_selection.py: randomly select 20 notes for testing (10 cases and 10 controls)
+9. notes2*.py: converting raw notes to various prompts 

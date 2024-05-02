@@ -31,7 +31,7 @@ class eval_config:
     do_sample: bool = True
     min_length = None
     use_cache: bool = True
-    top_p: float = 1.0
+    top_p: float = 0.9
     temperature: float = 1.0
     top_k: int = 50
     repetition_penalty: float = 1.0

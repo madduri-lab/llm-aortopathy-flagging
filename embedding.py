@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--model_name", 
     type=str, 
-    default="meta-llama/meditron-7b", 
+    default="meta-llama/Llama-2-7b-hf", 
     choices=[
         "epfl-llm/meditron-7b",
         "epfl-llm/meditron-70b",
@@ -35,7 +35,7 @@ parser.add_argument(
     ]
 )
 parser.add_argument("--use_lora", type=str, default="True", choices=["True", "False"])
-parser.add_argument("--lora_name", type=str, default="./model/marfan/mistral.pt")
+parser.add_argument("--lora_name", type=str, default="./model/marfan/mistral_small.pt")
 parser.add_argument("--log_file", type=str, default="llama-embedding.txt")
 parser.add_argument("--embedding_dir", type=str, default="./embedding/meditron-7b")
 parser.add_argument("--cluster_file", type=str, default="meditron-7b.pdf")
