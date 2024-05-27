@@ -54,7 +54,9 @@ logger.addHandler(stream_handler)
 
 tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 model = AutoModelForMaskedLM.from_pretrained(args.model_name)
+model.cuda()
 model.eval()
+print(model.config.max_position_embeddings)
 
 # Load data
 train_notes = json.load(open(args.train_note_path))
@@ -65,11 +67,15 @@ train_embeddings, val_embeddings = [], []
 train_classes, val_classes = [], []
 
 # Generate embeddings
+beyond_max = 0
 with torch.no_grad():
     for i, note in enumerate(train_notes):
         logger.info(i)
         prompt, label = note['summary'], note['label']
         batch = tokenizer([prompt], return_tensors="pt")
+        if batch["input_ids"].shape[-1] > model.config.max_position_embeddings:
+            beyond_max += 1
+            continue
         batch = {
             k: v.to(args.device)
             for k, v in batch.items()
@@ -85,11 +91,15 @@ with torch.no_grad():
         train_classes.append(
             0 if label == "controls" else 1
         )
-
+    print(beyond_max)
+    beyond_max = 0
     for i, note in enumerate(val_notes):
         logger.info(i)
         prompt, label = note['summary'], note['label']
         batch = tokenizer([prompt], return_tensors="pt")
+        if batch['input_ids'].shape[-1] > model.config.max_position_embeddings:
+            beyond_max += 1
+            continue
         batch = {
             k: v.to(args.device)
             for k, v in batch.items()
@@ -104,6 +114,7 @@ with torch.no_grad():
         val_classes.append(
             0 if label == "controls" else 1
         )
+    print(beyond_max)
 
 all_embeddings = train_embeddings + val_embeddings
 all_classes = train_classes + val_classes
