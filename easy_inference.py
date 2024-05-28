@@ -132,6 +132,8 @@ with torch.no_grad():
         prediction = tokenizer.decode(outputs[0], skip_special_tokens=True)
         if not echo:
             prediction = prediction[len(prompt):]
+            # Post-process the prediction
+            prediction = prediction.split("==")[0].strip()
         prediction_print = f"#####################################################\n{prediction}\n#####################################################\n"
         log(prediction_print)
         print(prediction_print)
