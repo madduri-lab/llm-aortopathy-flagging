@@ -1,7 +1,66 @@
+import os
 import copy
 import json
 import torch
 from torch.utils.data import Dataset
+
+class CleanedTextDataset(Dataset):
+    """
+    Dataset for fine-tuning causal language models using raw texts stored in a list of txt files within a certain directory.
+    """
+    def __init__(
+        self,
+        data_path,
+        tokenizer,
+        max_tokens=4096,
+    ):
+        """
+        :param: `data_path` Path to the directory containing the raw .txt files
+        :param: `tokenizer` Tokenizer for the model to be finetuned
+        :param: `max_tokens` Number of tokens for each text chunk after preprocess
+        """
+        self.tokenizer = tokenizer
+        self.max_tokens = max_tokens
+        self.datasets = {
+            "input_ids": [],
+            "attention_mask": [],
+            "labels": [],
+        }
+        tokenizer.pad_token = tokenizer.eos_token
+        files = [
+            file for file in os.listdir(data_path) if file.endswith(".txt")
+        ]
+        for file in files:
+            with open(os.path.join(data_path, file), "r") as f:
+                file_content = f.read() 
+                self._file_to_tokens(file_content)
+
+    def _file_to_tokens(self, file_content):
+        file_tokens = self.tokenizer(file_content)
+        input_id_chunks = [
+            file_tokens['input_ids'][i:min(i + self.max_tokens, len(file_tokens['input_ids']))] + 
+            [self.tokenizer.pad_token_id] * (self.max_tokens - len(file_tokens['input_ids'][i:min(i + self.max_tokens, len(file_tokens['input_ids']))])) 
+            for i in range(0, len(file_tokens['input_ids']), self.max_tokens)
+        ]
+        attention_mask_chunks = [
+            file_tokens['attention_mask'][i:min(i + self.max_tokens, len(file_tokens['attention_mask']))] 
+            if len(file_tokens['attention_mask'][i:min(i + self.max_tokens, len(file_tokens['attention_mask']))]) == self.max_tokens else
+            file_tokens['attention_mask'][i:min(i + self.max_tokens, len(file_tokens['attention_mask']))] + [1] + [0] * (self.max_tokens-len(file_tokens['attention_mask'][i:min(i + self.max_tokens, len(file_tokens['attention_mask']))])-1)
+            for i in range(0, len(file_tokens['attention_mask']), self.max_tokens)
+        ]
+        label_chunks = input_id_chunks.copy()
+        self.datasets['input_ids'].extend(input_id_chunks)
+        self.datasets['attention_mask'].extend(attention_mask_chunks)
+        self.datasets['labels'].extend(label_chunks)
+
+    def __len__(self):
+        return len(self.datasets["labels"])
+    
+    def __getitem__(self, index):
+        return {
+            k: self.datasets[k][index]
+            for k in self.datasets.keys()
+        }
 
 class RawTextDataset(Dataset):
     """
