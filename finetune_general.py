@@ -26,7 +26,7 @@ parser.add_argument("--lora_size", type=str, default="small", choices=["small", 
 parser.add_argument("--output_name", type=str, default="./model/marfan/mistral.pt")
 
 ## dataset
-parser.add_argument("--dataset_type", type=str, default="RawTextDataset", choices=["RawTextDataset", "AlpacaDataset", "ClinicalNoteDataset"])
+parser.add_argument("--dataset_type", type=str, default="RawTextDataset", choices=["RawTextDataset", "AlpacaDataset", "ClinicalNoteDataset", "CleanedTextDataset"])
 parser.add_argument("--train_data_path", type=str, default="./data/raw_data/data_cb.json")
 parser.add_argument("--validation_data_path", type=str, default="./data/raw_data/data_cb_val.json")
 parser.add_argument("--max_tokens", type=int, default=224, help="Maximum number of tokens for the input.")
