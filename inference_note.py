@@ -23,6 +23,7 @@ parser.add_argument("--quantization", type=str, default="True", choices=["True",
 parser.add_argument("--do_sample", type=str, default="True", choices=["True", "False"])
 parser.add_argument("--use_cache", type=str, default="True", choices=["True", "False"])
 parser.add_argument("--reproducible", type=str, default="True", choices=["True", "False"])
+parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--max_new_tokens", type=int, default=500, help="Maximum numbers of tokens to generate.")
 parser.add_argument("--length_penalty", type=float, default=1)
 parser.add_argument("--temp", type=float, default=0.6)
@@ -51,6 +52,7 @@ eval_config.reproducible = True if args. reproducible == "True" else False
 eval_config.max_new_tokens = args.max_new_tokens
 eval_config.length_penalty = args.length_penalty
 eval_config.temperature = args.temp
+eval_config.seed = args.seed
 eval_config.repetition_penalty = args.repetition_penalty
 
 if eval_config.reproducible:
