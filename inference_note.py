@@ -28,6 +28,7 @@ parser.add_argument("--max_new_tokens", type=int, default=500, help="Maximum num
 parser.add_argument("--length_penalty", type=float, default=1)
 parser.add_argument("--temp", type=float, default=0.6)
 parser.add_argument("--repetition_penalty", type=float, default=1)
+parser.add_argument("--batch_size", type=int, default=2)
 
 args = parser.parse_args()
 
@@ -108,28 +109,18 @@ tokenizer.pad_token = tokenizer.bos_token
 
 notes = json.load(open(args.input_note_path))
 
+start_idx = 0
 with torch.no_grad():
-    for note in notes:
-        prompt, label = note['prmopt'], note['label']
-        batch = tokenizer([prompt], return_tensors="pt")
+    while start_idx < len(notes):
+        end_idx = start_idx + args.batch_size if (start_idx + args.batch_size) < len(notes) else len(notes)
+        batch_notes = notes[start_idx:end_idx]
+        prompts = [note['prompt'] for note in batch_notes]
+        labels = [note['label'] for note in batch_notes]
+        batch = tokenizer(prompts, return_tensors="pt", padding="longest")
         batch = {
             k: v.to(eval_config.device)
             for k, v in batch.items()
         }
-        # outputs = model.generate(
-        #     **batch,
-        #     max_length=4096,
-        #     # max_new_tokens=eval_config.max_new_tokens,
-        #     do_sample=eval_config.do_sample,
-        #     top_p=eval_config.top_p,
-        #     temperature=eval_config.temperature,
-        #     min_length=eval_config.min_length,
-        #     use_cache=eval_config.use_cache,
-        #     top_k=eval_config.top_k,
-        #     repetition_penalty=eval_config.repetition_penalty,
-        #     length_penalty=eval_config.length_penalty,
-        # )
-
         outputs = model.generate(
             **batch,
             max_new_tokens=eval_config.max_new_tokens,
@@ -137,11 +128,14 @@ with torch.no_grad():
             top_p=eval_config.top_p,
             temperature=eval_config.temperature,
         )
-        prediction = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        prediction_without_input = prediction[len(prompt)-len("**Evaluation** "):]
-        logger.info("================================================")
-        prediction_post_process = prediction_without_input.split("=")[0].strip()
-        logger.info(f"The label for the patient {note['note_id']} is {label}, and the total output length is {len(outputs[0])}")
-        logger.info(prediction_post_process)
-        logger.info("================================================")
+        predictions = [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
+
+        for i in range(len(batch_notes)):
+            prediction = predictions[i]
+            prediction_without_input = prediction[len(prompts[i])-len("**Evaluation** "):]
+            logger.info("================================================")
+            prediction_post_process = prediction_without_input.split("=")[0].strip()
+            logger.info(f"The label for the patient {batch_notes[i]['note_id']} is {labels[i]}, and the total output length is {len(outputs[i])}")
+            logger.info(prediction_post_process)
+            logger.info("================================================")
         
