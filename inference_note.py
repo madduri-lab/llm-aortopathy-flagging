@@ -138,4 +138,5 @@ with torch.no_grad():
             logger.info(f"The label for the patient {batch_notes[i]['note_id']} is {labels[i]}, and the total output length is {len(outputs[i])}")
             logger.info(prediction_post_process)
             logger.info("================================================")
+        start_idx = end_idx
         
