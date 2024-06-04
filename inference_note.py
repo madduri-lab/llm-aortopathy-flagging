@@ -61,7 +61,7 @@ if eval_config.reproducible:
     torch.manual_seed(eval_config.seed)
 
 
-if "mistral_large" not in args.lora_name:
+if "large" not in args.lora_name:
     lora_config = LoraConfig(
         task_type = TaskType.CAUSAL_LM,
         r = 16,
