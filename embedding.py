@@ -40,6 +40,7 @@ parser.add_argument("--log_file", type=str, default="llama-embedding.txt")
 parser.add_argument("--embedding_dir", type=str, default="./embedding/meditron-7b")
 parser.add_argument("--cluster_file", type=str, default="meditron-7b.pdf")
 parser.add_argument("--device", type=str, default="cuda")
+parser.add_argument("--embedding_type", type=str, default="mean", choices=["mean", "first", "last"])
 
 ## data
 parser.add_argument("--train_note_path", type=str, default="./data/datasets/raw/marfan_train_notes.json")
@@ -134,9 +135,13 @@ with torch.no_grad():
             **batch,
             output_hidden_states=True,
         )
-        train_embeddings.append(
-            output.hidden_states[-1].squeeze().float().mean(0).cpu().detach().numpy()
-        )
+        if args.embedding_type == "mean":
+            embedding = output.hidden_states[-1].squeeze().float().mean(0).cpu().detach().numpy()
+        elif args.embedding_type == "first":
+            embedding = output.hidden_states[-1].squeeze().float()[0].cpu().detach().numpy()
+        elif args.embedding_type == "last":
+            embedding = output.hidden_states[-1].squeeze().float()[-1].cpu().detach().numpy()
+        train_embeddings.append(embedding)
         train_classes.append(
             0 if label == "controls" else 1
         )
@@ -153,9 +158,13 @@ with torch.no_grad():
             **batch,
             output_hidden_states=True,
         )
-        val_embeddings.append(
-            output.hidden_states[-1].squeeze().float().mean(0).cpu().detach().numpy()
-        )
+        if args.embedding_type == "mean":
+            embedding = output.hidden_states[-1].squeeze().float().mean(0).cpu().detach().numpy()
+        elif args.embedding_type == "first":
+            embedding = output.hidden_states[-1].squeeze().float()[0].cpu().detach().numpy()
+        elif args.embedding_type == "last":
+            embedding = output.hidden_states[-1].squeeze().float()[-1].cpu().detach().numpy()
+        val_embeddings.append(embedding)
         val_classes.append(
             0 if label == "controls" else 1
         )
