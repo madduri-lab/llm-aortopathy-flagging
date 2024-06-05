@@ -41,6 +41,8 @@ parser.add_argument("--embedding_dir", type=str, default="./embedding/meditron-7
 parser.add_argument("--cluster_file", type=str, default="meditron-7b.pdf")
 parser.add_argument("--device", type=str, default="cuda")
 parser.add_argument("--embedding_type", type=str, default="mean", choices=["mean", "first", "last"])
+parser.add_argument("--do_normalize", type=str, choices=["True", "False"], default="False")
+parser.add_argument("--do_standardize", type=str, choices=["True", "False"], default="True")
 
 ## data
 parser.add_argument("--train_note_path", type=str, default="./data/datasets/raw/marfan_train_notes.json")
@@ -141,6 +143,9 @@ with torch.no_grad():
             embedding = output.hidden_states[-1].squeeze().float()[0].cpu().detach().numpy()
         elif args.embedding_type == "last":
             embedding = output.hidden_states[-1].squeeze().float()[-1].cpu().detach().numpy()
+        if args.do_normalize == "True":
+            embedding = embedding / np.linalg.norm(embedding, ord=2)
+            print(sum(embedding**2))
         train_embeddings.append(embedding)
         train_classes.append(
             0 if label == "controls" else 1
@@ -164,6 +169,9 @@ with torch.no_grad():
             embedding = output.hidden_states[-1].squeeze().float()[0].cpu().detach().numpy()
         elif args.embedding_type == "last":
             embedding = output.hidden_states[-1].squeeze().float()[-1].cpu().detach().numpy()
+        if args.do_normalize == "True":
+            embedding = embedding / np.linalg.norm(embedding, ord=2)
+            print(sum(embedding**2))
         val_embeddings.append(embedding)
         val_classes.append(
             0 if label == "controls" else 1
@@ -192,9 +200,13 @@ reduced = TSNE(n_components=2, random_state=0).fit_transform(X)
 plt.scatter(reduced[:, 0], reduced[:, 1], c=all_classes, cmap='rainbow')
 plt.savefig(f"{args.embedding_dir}/{args.cluster_file}")
 
-scaler = StandardScaler()
-train_x = scaler.fit_transform(X_train)
-test_x = scaler.transform(X_val)
+if args.do_standardize == "True":
+    scaler = StandardScaler()
+    train_x = scaler.fit_transform(X_train)
+    test_x = scaler.transform(X_val)
+else:
+    train_x = X_train
+    test_x = X_val
 
 # For a real problem, C should be properly cross validated and the confusion matrix analyzed
 clf = LogisticRegression(random_state=0, C=1.0, max_iter=1000).fit(train_x, train_classes) 
