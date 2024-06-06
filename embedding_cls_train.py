@@ -3,6 +3,7 @@ import pickle
 import argparse
 import numpy as np
 from torch import nn
+from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -10,6 +11,8 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--embedding_dir", type=str, default="./embedding/meditron-7b")
 parser.add_argument("--do_standardize", type=str, choices=["True", "False"], default="True")
+parser.add_argument("--lr", type=float, default=0.001)
+parser.add_argument("--batch_size", type=int, default=64)
 
 args = parser.parse_args()
 
@@ -40,7 +43,6 @@ train_dataset = TensorDataset(X_train, y_train)
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 val_dataset = TensorDataset(X_val, y_val)
 val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
-
 
 # Neural network model
 class BinaryClassifier(nn.Module):
@@ -83,19 +85,22 @@ for epoch in range(num_epochs):
     model.eval()  # Set the model to evaluation mode
     with torch.no_grad():  # No need to calculate gradients
         val_losses = []
-        correct = 0
-        total = 0
+        predictions = []
+        targets = []
         for val_inputs, val_labels in val_loader:
             val_outputs = model(val_inputs)
             val_loss = criterion(val_outputs.squeeze(), val_labels)
             val_losses.append(val_loss.item())
             
-            # Calculate accuracy
-            predicted = (val_outputs.squeeze() >= 0.5).float()  # Threshold probabilities to get binary predictions
-            total += val_labels.size(0)
-            correct += (predicted == val_labels).sum().item()
+            # Store predictions and targets for confusion matrix
+            predictions.extend((val_outputs.squeeze() >= 0.5).float().numpy())
+            targets.extend(val_labels.numpy())
 
         avg_val_loss = sum(val_losses) / len(val_losses)
-        accuracy = correct / total
+        # Compute confusion matrix
+        conf_matrix = confusion_matrix(targets, predictions)
+        TN, FP, FN, TP = conf_matrix.ravel()
 
-    print(f'Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}, Val Loss: {avg_val_loss:.4f}, Val Acc: {accuracy:.4f}')
+    print(f'Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}, Val Loss: {avg_val_loss:.4f}')
+    print(f'Confusion Matrix:\n{conf_matrix}')
+    print(f'TP: {TP}, TN: {TN}, FP: {FP}, FN: {FN}')
