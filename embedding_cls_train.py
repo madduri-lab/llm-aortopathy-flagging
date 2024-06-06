@@ -3,27 +3,30 @@ import pickle
 import argparse
 import numpy as np
 from torch import nn
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
-import numpy as np
 
 parser = argparse.ArgumentParser()  
 
 parser.add_argument("--embedding_dir", type=str, default="./embedding/meditron-7b")
+parser.add_argument("--do_standardize", type=str, choices=["True", "False"], default="True")
 
 args = parser.parse_args()
 
 # Load embedding and classes
 X_train = np.load(f'{args.embedding_dir}/train_embedding.npz')['train_embeddings']
 X_val = np.load(f'{args.embedding_dir}/val_embedding.npz')['val_embeddings']
-X = np.load(f'{args.embedding_dir}/all_embedding.npz')['all_embeddings']
 
 with open(f'{args.embedding_dir}/train_classes.pkl', 'rb') as file:
     y_train = pickle.load(file)
 with open(f'{args.embedding_dir}/val_classes.pkl', 'rb') as file:
     y_val = pickle.load(file)
-with open(f'{args.embedding_dir}/all_classes.pkl', 'rb') as file:
-    all_classes = pickle.load(file)
 
+# Standardize the data
+if args.do_standardize == "True":
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_val = scaler.transform(X_val)
 
 # Assuming `X_train` and `y_train` are your input and output training data respectively
 # Convert numpy arrays to PyTorch tensors
