@@ -83,11 +83,19 @@ for epoch in range(num_epochs):
     model.eval()  # Set the model to evaluation mode
     with torch.no_grad():  # No need to calculate gradients
         val_losses = []
+        correct = 0
+        total = 0
         for val_inputs, val_labels in val_loader:
             val_outputs = model(val_inputs)
             val_loss = criterion(val_outputs.squeeze(), val_labels)
             val_losses.append(val_loss.item())
-        
-        avg_val_loss = sum(val_losses) / len(val_losses)
+            
+            # Calculate accuracy
+            predicted = (val_outputs.squeeze() >= 0.5).float()  # Threshold probabilities to get binary predictions
+            total += val_labels.size(0)
+            correct += (predicted == val_labels).sum().item()
 
-    print(f'Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}, Val Loss: {avg_val_loss:.4f}')
+        avg_val_loss = sum(val_losses) / len(val_losses)
+        accuracy = correct / total
+
+    print(f'Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}, Val Loss: {avg_val_loss:.4f}, Val Acc: {accuracy:.4f}')
