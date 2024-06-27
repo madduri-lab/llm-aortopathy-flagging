@@ -4,14 +4,16 @@ import argparse
 from data import *
 from train import train
 from config import train_config
-from utils.model_utils import load_model, save_peft_model
+from utils.model_utils import load_model, save_peft_model, load_peft_model
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
 from transformers import LlamaTokenizer, default_data_collator, DataCollatorForLanguageModeling, DataCollatorWithPadding
 
 parser = argparse.ArgumentParser()  
 ## model
-parser.add_argument("--model_name", type=str, default="/scratch/bcdz/zl52/llama/7B")
-parser.add_argument("--output_name", type=str, default="./model/cb/lora_7B.pt")
+parser.add_argument("--model_name", type=str, default="meta-llama/Meta-Llama-3-8B")
+parser.add_argument("--output_name", type=str, default="./model/marfan/llama3_8b_genrev_aora_raw_large_checkpoint_2.pt")
+parser.add_argument("--load_lora", default='False', type=str, choices=["True", "False"])
+parser.add_argument("--input_lora_path", type=str, default='./model/marfan/llama3_8b_genrev_aora_raw_large.pt')
 
 ## dataset
 parser.add_argument("--dataset_type", type=str, default="RawTextDataset", choices=["RawTextDataset", "AlpacaDataset", "ClinicalNoteDataset"])
@@ -65,6 +67,8 @@ start_time = time.time()
 model = load_model(train_config.model_name, quantization=True)
 model = prepare_model_for_kbit_training(model)
 model = get_peft_model(model, lora_config)
+if args.load_lora == 'True':
+    model = load_peft_model(model, args.input_lora_path)
 
 tokenizer = LlamaTokenizer.from_pretrained(train_config.model_name)
 tokenizer.pad_token_id = tokenizer.eos_token_id
