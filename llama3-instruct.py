@@ -1,20 +1,27 @@
 import torch
 import json
 import argparse
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, logging
 from peft import get_peft_model, LoraConfig, TaskType
 from utils.model_utils import load_peft_model
 
 parser = argparse.ArgumentParser()  
 ## model
 parser.add_argument("--model_name", type=str, default="meta-llama/Meta-Llama-3-8B-Instruct")
-parser.add_argument("--use_lora", type=str, default="True", choices=["True", "False"])
-parser.add_argument("--lora_name", type=str, default="./model/marfan/llama3_instruct_8b_genrev_aora_raw_large.pt")
-parser.add_argument("--device", type=str, default="cuda")
-
+parser.add_argument("--use_lora", type=str, default="False", choices=["True", "False"])
+parser.add_argument("--lora_name", type=str, default="/home/zeyang/models/llama3_instruct_8b_genrev_aora_raw_large.pt")
+parser.add_argument("--bypass", type=str, default="True", choices=["True", "False"])
 
 ## data
-parser.add_argument("--eval_data_path", type=str, default="./test-instruct.json")
+parser.add_argument("--eval_data_path", type=str, default="/home/zeyang/test_output.json")
+parser.add_argument("--shot_data_path", type=str, default="/home/zeyang/shots.json")
+parser.add_argument("--use_shots", type=str, default="False", choices=["True", "False"])
+
+## parameters for LLM generation
+parser.add_argument("--device", type=str, default="cuda")
+parser.add_argument("--temp", type=float, default=0.6)
+parser.add_argument("--topp", type=float, default=0.9)
+parser.add_argument("--max_new_tokens", type=int, default=512, help="Maximum numbers of tokens to generate.")
 
 args = parser.parse_args()
 
@@ -46,64 +53,124 @@ else:
         lora_dropout=0.05,  # Conventional
         task_type=TaskType.CAUSAL_LM,
     )
-    
+
+if args.bypass == "True":
+    # Bypass "Special tokens have been added in the vocabulary..." warning
+    logging.set_verbosity_error()
+
+# The new quant setting method.
+quant_config = BitsAndBytesConfig(
+    load_in_8bit=True,
+)    
+
 model = AutoModelForCausalLM.from_pretrained(
     args.model_name,
     return_dict=True,
-    load_in_8bit=True,
+    # load_in_8bit=True, # This one is deprecated and will be removed in the future.
     device_map="auto",
     low_cpu_mem_usage=True,
+    quantization_config = quant_config
 )
+
 if args.use_lora == "True":
     model = get_peft_model(model, lora_config)
     model = load_peft_model(model, args.lora_name)
 else:
     print("Use the original model")
+
 model.eval()
-tokenizer = AutoTokenizer.from_pretrained(args.model_name, padding_side="left")
-tokenizer.pad_token = tokenizer.bos_token
+tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
 input_json = json.load(open(args.eval_data_path))
+input_shot = json.load(open(args.shot_data_path))[0]
 
-system_prompt = "You are a clinical expert on rare genetic diseases. Does this patient need genetic testing  for a potential undiagnosed rare genetic disease or syndrome based on their past and present symptoms and medical history? If yes, provide specific criteria why, otherwise state why the patient does not require genetic testing. Return your response as a JSON formatted string with two parts 1) testing recommendation ('recommendeded' or 'not recommended') and 2) your reasoning."
+res = []
+
+def extract_json_from_string(string):
+    try:
+        # Try to parse the whole string as JSON
+        return json.loads(string)
+    except json.JSONDecodeError:
+        pass
+
+    brace_count = 0
+    start_index = -1
+    for i, char in enumerate(string):
+        if char == '{':
+            if brace_count == 0:
+                start_index = i
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+            if brace_count == 0 and start_index != -1:
+                return string[start_index:i+1]
+    return None
 
 with torch.no_grad():
     for note in input_json:
-        chat = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": note['prompt']}
-        ]
-        non_token = tokenizer.apply_chat_template(
+        if args.use_shots == "True":
+            print("Use the static shots")
+            chat = [
+                {"role": "system", "content": note['system_prompt']},
+                {"role": "user", "content": input_shot['prompt-shot1']},
+                {"role": "assistant", "content": input_shot['output-shot1']},
+                {"role": "user", "content": input_shot['prompt-shot2']},
+                {"role": "assistant", "content": input_shot['output-shot2']},
+                {"role": "user", "content": input_shot['prompt-shot3']},
+                {"role": "assistant", "content": input_shot['output-shot3']},
+                {"role": "user", "content": input_shot['prompt-shot4']},
+                {"role": "assistant", "content": input_shot['output-shot4']},
+                {"role": "user", "content": note['user_prompt']}
+            ]
+        else: 
+            chat = [
+                {"role": "system", "content": note['system_prompt']},
+                {"role": "user", "content": note['user_prompt']}
+            ]
+        
+        
+        input_ids = tokenizer.apply_chat_template(
             chat,
-            tokenize=False
-        )
-        tokens = tokenizer.apply_chat_template(
-            chat,
-            tokenize=True,
             add_generation_prompt=True,
             return_tensors="pt"
-        )
-        print(tokens)
-        tokens = tokens.to(args.device)
+        ).to(args.device)
+
+        terminators = [
+            tokenizer.eos_token_id,
+            tokenizer.convert_tokens_to_ids("<|eot_id|>")
+        ]
+        
+
         outputs = model.generate(
-            input_ids=tokens,
-            max_new_tokens=300,
-            top_p=1.0,
-            temperature=0.6,
+            input_ids,
+            max_new_tokens=args.max_new_tokens,
+            eos_token_id=terminators,
             do_sample=True,
-            use_cache=False,
+            temperature=args.temp,
+            top_p=args.topp,
+            pad_token_id=tokenizer.eos_token_id
         )
-        prediction = tokenizer.decode(outputs[0], skip_special_tokens=False)
-        prediction = prediction[len(non_token):]
-        print(prediction)
-        print('============')
+        
+        response = outputs[0][input_ids.shape[-1]:]
+        prediction = tokenizer.decode(response, skip_special_tokens=True)
+        # print(prediction)
+        # print('============')
+        try:
+            json_string = extract_json_from_string(prediction)
+            if json_string:
+                prediction_json = json.loads(json_string)
+                prediction_json['id'] = note['id']
+                res.append(prediction_json)
+            else:
+                raise json.JSONDecodeError("No JSON found", prediction, 0)
+        except json.JSONDecodeError:
+            error_file = f"{note['id']}.txt"
+            with open(error_file, 'w') as f:
+                f.write(prediction)
 
+with open("output.json", 'w') as f:
+    json.dump(res, f, ensure_ascii=False, indent=4)
 
+print("Processing complete.")
+        
 
-chat = [
-   {"role": "user", "content": "Hello, how are you?"},
-   {"role": "assistant", "content": "I'm doing great. How can I help you today?"},
-   {"role": "user", "content": "I'd like to show off how chat templating works!"},
-]
-
-print(tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True))
