@@ -1,0 +1,728 @@
+## databricks specific update environment ##
+!pip install --upgrade transformers
+!pip install -U bitsandbytes
+!pip install 'accelerate>=0.26.0'
+# restart kernel
+dbutils.library.restartPython()
+
+
+## load libraries ##
+import sklearn
+import mlflow.deployments as mlfd
+from datetime import datetime, timezone
+import pytz
+est = pytz.timezone('US/Eastern')
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import monotonically_increasing_id
+import pandas as pd
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, precision_score, recall_score
+import mlflow
+import os
+import time
+import shlex
+import shutil
+import subprocess
+import torch
+import transformers
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+import random
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
+import re
+import json
+import math
+from typing import Dict, List, Optional
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import stats  
+import random
+
+
+## Instantiate Client Connection ##
+# for served models: instantiate client connection
+import mlflow.deployments as mlfd
+from datetime import datetime, timezone
+import pytz
+client = mlfd.get_deploy_client("databricks")
+est = pytz.timezone('US/Eastern')  #Set timezone, Databricks default is UTC
+# check served model endpoints available
+[i['name'] for i in client.list_endpoints()]
+
+
+## Load Notes Data ##
+# load JSON data
+with open("/Volumes/biobank_analytics/verma_lab/llm_udd_aortopathy/final_subset50_set1_combined_102324_timefiltered.json", "r") as file:
+    prompts_data = json.load(file)
+print(f"Total rows in full dataset: {len(prompts_data)}")
+prompts_data
+# subset data for testing
+prompts_data_subset = random.sample(prompts_data, k=4)
+prompts_data_subset
+
+
+## Set System Prompt ##
+# set system prompt text
+system_prompt = """You are a clinical expert on rare genetic diseases, with a specialization in genetic aortopathic conditions such as Marfan syndrome, Loeys-Dietz syndrome, and similar disorders. Your task is to determine if this patient needs genetic testing specifically for aortopathic genetic diseases based on their past and present symptoms and medical history. 
+
+Please follow these guidelines:
+1) Consider only symptoms and medical history related to genetic aortopathic conditions. 
+2) If the patient shows signs that suggest an genetic aortopathic disease, recommend testing and provide specific criteria why.
+3) If the patient does not show signs specific to genetic aortopathic diseases, state why genetic testing for these conditions is not recommended.
+
+Return your response as a JSON formatted string with 2 parts:
+1) testing recommendation {'testing':'recommended'} or {'testing':'not recommended'}
+2) your reasoning, focused solely on genetic aortopathic conditions
+"""
+
+
+## Inference - Base Model ##
+def validate_response_format(response_content: str) -> Optional[int]:
+    """Validate response format and return prediction if valid"""
+    is_recommended = re.search(r'"?testing"?\s*:\s*"?recommended"?', response_content, re.IGNORECASE)
+    is_not_recommended = re.search(r'"?testing"?\s*:\s*"?not recommended"?', response_content, re.IGNORECASE)
+    
+    if is_recommended:
+        return 1
+    elif is_not_recommended:
+        return 0
+    return None
+
+def get_response_with_logprobs(prompt: Dict, client, system_prompt: str, attempt: int) -> Dict:
+    """Get a single response from the model with logprobs"""
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Clinical Note: {prompt['note']}"}
+    ]
+    
+    response = client.predict(
+        endpoint="meta-llama-3-1-8b-instruct",
+        inputs={
+            "messages": messages,
+            "max_tokens": 300,
+            "temperature": 0.7,
+            "logprobs": True
+        }
+    )
+    
+    response_content = response['choices'][0]['message']['content'].strip()
+    logprobs_content = response['choices'][0]['logprobs']['content']
+    
+    # Initialize probability values
+    recommended_prob = None
+    not_recommended_prob = None
+    not_token_prob = None
+    combined_prob = None
+    not_token_logprob = None
+
+    # Process logprobs and calculate probabilities
+    if validate_response_format(response_content) is not None:
+        print("Calculating confidence scores...")
+        print("Token logprobs:")
+        not_flag = False
+        for item in logprobs_content:
+            print(f"Token: {item['token']}, Logprob: {item['logprob']}")
+            
+            if 'recommended' in item['token'] and not_flag:
+                not_recommended_prob = math.exp(item['logprob'])
+                if 'recommended' in item['token'] and not_flag:
+                    not_recommended_prob = math.exp(item['logprob'])
+                    not_token_prob = math.exp(not_token_logprob)
+                    combined_prob = math.exp(not_token_logprob + item['logprob'])
+                    print(f"\nFinal logprobs:")
+                    print(f"'not' logprob: {not_token_logprob}")
+                    print(f"'recommended' logprob: {item['logprob']}")
+                    print(f"Combined probability: {combined_prob:.6f}")
+                break
+            if 'recommended' in item['token']:
+                recommended_prob = math.exp(item['logprob'])
+                print(f"\nFinal logprobs:")
+                print(f"'recommended' logprob: {item['logprob']}")
+                print(f"Probability: {recommended_prob:.6f}")
+                break
+            if 'not' in item['token']:
+                not_flag = True
+                not_token_logprob = item['logprob']
+    
+    return {
+        "ClinicalNoteKey": prompt['ClinicalNoteKey'],
+        "id": prompt["id"],
+        "label": prompt["label"],
+        "tested": prompt["tested"],
+        "response": response_content,
+        "attempt": attempt,
+        "final_probability": combined_prob if combined_prob is not None else recommended_prob
+    }
+
+def main():
+    # Load JSON data
+    prompts_data = prompts_data_subset
+    
+    # Optional: subset for testing
+    #prompts_data = prompts_data[:5] + prompts_data[-10:]
+    
+    valid_results = []
+    poorly_formatted = []
+    
+    for prompt in prompts_data:
+        print(f"\nProcessing note ID: {prompt['ClinicalNoteKey']}")
+        valid_format = False
+        final_result = None
+        
+        # Try up to 3 times for each prompt
+        for attempt in range(1, 4):
+            result = get_response_with_logprobs(prompt, client, system_prompt, attempt)
+            print(f"Attempt: {attempt}")
+            print(f"Response: {result['response']}\n")
+            
+            # Check if format is valid
+            if validate_response_format(result['response']) is not None:
+                valid_format = True
+                final_result = result
+                print(f"Valid format achieved on attempt {attempt}")
+                print(f"Final probability: {result['final_probability']}")
+                break
+            else:
+                print(f"Invalid format detected on attempt {attempt}")
+                if attempt < 3:
+                    print("Trying again...")
+        
+        # After all attempts, store result in appropriate list
+        if valid_format:
+            valid_results.append(final_result)
+            print(f"Successfully processed note ID: {prompt['ClinicalNoteKey']}")
+        else:
+            poorly_formatted.append(result)
+            print(f"\nFailed to achieve valid format for note ID: {prompt['ClinicalNoteKey']} after 3 attempts")
+            print("Original note content:")
+            print("-" * 80)
+            print(prompt['note'])
+            print("-" * 80)
+
+    # Save the valid results
+    if valid_results:
+        output_file = "/Volumes/biobank_analytics/verma_lab/llm_udd_aortopathy/output_workflow_dev/predictions_with_logprobs_and_validation.json"
+        with open(output_file, "w") as file:
+            json.dump(valid_results, file, indent=4)
+        print(f"\nValid results saved to {output_file}")
+    
+    # Save the poorly formatted results
+    if poorly_formatted:
+        error_file = "/Volumes/biobank_analytics/verma_lab/llm_udd_aortopathy/output_workflow_dev/predictions_with_logprobs_and_validation.json"
+        with open(error_file, "w") as file:
+            json.dump(poorly_formatted, file, indent=4)
+        print(f"Poorly formatted results saved to {error_file}")
+    
+    # Print summary
+    print(f"\nProcessing Summary:")
+    print(f"Successfully formatted: {len(valid_results)}")
+    print(f"Poorly formatted: {len(poorly_formatted)}")
+
+if __name__ == "__main__":
+    main()
+
+
+## Explore Inference Output + Generate Contingency Table ##
+# # Read JSON file
+# with open('/Volumes/biobank_analytics/verma_lab/llm_udd_aortopathy/output_workflow_dev/predictions_with_logprobs_and_validation.json', 'r') as f:
+#     inf_og = json.load(f)
+
+# Read JSON file
+with open('/Volumes/biobank_analytics/verma_lab/llm_udd_aortopathy/output_workflow_dev/final_subset50_set1_refactored_inf_temp05.json', 'r') as f:
+    inf_og = json.load(f)
+
+print("\nSample of raw data:")
+print(json.dumps(inf_og[0], indent=2))
+
+data = []
+
+for note in inf_og:
+    response_content = note['response']
+
+    # Apply regex checks
+    is_recommended = re.search(r'"?testing"?\s*:\s*"?recommended"?', response_content, re.IGNORECASE)
+    is_not_recommended = re.search(r'"?testing"?\s*:\s*"?not recommended"?', response_content, re.IGNORECASE)
+
+    # Determine prediction
+    if is_recommended:
+        prediction = 1
+    elif is_not_recommended:
+        prediction = 0
+    else:
+        prediction = None
+
+    # Append data
+    data.append({
+        'ClinicalNoteKey': note['ClinicalNoteKey'],
+        'id': note['id'],
+        'prediction': prediction,
+        'ground_truth': int(note['tested'] == 'required'),
+        'final_probability': note['final_probability']
+    })
+
+    # Debugging: Log cases where prediction is None
+    if prediction is None:
+        print(f"Ambiguous Case:")
+        print(f"ClinicalNoteKey: {note['ClinicalNoteKey']}")
+        print(f"Response Content: {response_content}")
+        print("-" * 100)
+
+# Convert to DataFrame
+results = pd.DataFrame(data)
+results['prediction'] = pd.Series(results['prediction']).astype('Int64')
+results['ground_truth'] = results['ground_truth'].astype(int)
+
+# Get counts
+counts = {
+    'recommendations': sum(1 for d in data if d['prediction'] == 1),
+    'non_recommendations': sum(1 for d in data if d['prediction'] == 0),
+    'no_prediction': sum(1 for d in data if d['prediction'] is None),
+    'required_tests': sum(1 for d in data if d['ground_truth'] == 1),
+    'not_required_tests': sum(1 for d in data if d['ground_truth'] == 0)
+}
+
+# Print counts
+print("\nCounts:")
+for key, value in counts.items():
+    print(f"{key.replace('_', ' ').title()}: {value}")
+
+# Calculate metrics based on boolean operations
+valid_results = results.dropna()
+true_positives = ((valid_results['ground_truth'] == 1) & (valid_results['prediction'] == 1)).sum()
+false_negatives = ((valid_results['ground_truth'] == 1) & (valid_results['prediction'] == 0)).sum()
+true_negatives = ((valid_results['ground_truth'] == 0) & (valid_results['prediction'] == 0)).sum()
+false_positives = ((valid_results['ground_truth'] == 0) & (valid_results['prediction'] == 1)).sum()
+
+# Calculate metrics
+metrics = {
+    'Accuracy': (true_positives + true_negatives) / len(valid_results),
+    'Sensitivity (Recall)': true_positives / (true_positives + false_negatives),
+    'Specificity': true_negatives / (true_negatives + false_positives),
+    'Precision (PPV)': true_positives / (true_positives + false_positives),
+    'NPV': true_negatives / (true_negatives + false_negatives),
+    'F1-score': 2 * true_positives / (2 * true_positives + false_positives + false_negatives),
+}
+
+# Calculate F3-score
+beta = 3
+metrics['F3-score'] = (1 + beta**2) * metrics['Precision (PPV)'] * metrics['Sensitivity (Recall)'] / ((beta**2 * metrics['Precision (PPV)']) + metrics['Sensitivity (Recall)'])
+
+print("\nConfusion Matrix:")
+print(f"""
+True Negatives: {true_negatives}  |  False Positives: {false_positives}
+False Negatives: {false_negatives} |  True Positives: {true_positives}
+""")
+
+print("\nPerformance Note Level Metrics:")
+for metric, value in metrics.items():
+    print(f"{metric}: {value:.3f}")
+
+# Extract ClinicalNoteKey IDs for properly formatted responses
+correctly_formatted_responses_ids = results[results['prediction'].notna()]['ClinicalNoteKey'].tolist()
+
+# Filter original inf_og data for rows with properly formatted ClinicalNoteKey IDs
+correctly_formatted_responses_rows = [note for note in inf_og if note['ClinicalNoteKey'] in correctly_formatted_responses_ids]
+
+print("\nRows with properly formatted responses:")
+print(len(correctly_formatted_responses_rows))
+
+# Optional: Add probability analysis
+if 'final_probability' in results.columns:
+    print("\nProbability Analysis:")
+    print(f"Mean probability: {results['final_probability'].mean():.3f}")
+    print(f"Median probability: {results['final_probability'].median():.3f}")
+    print(f"Standard deviation: {results['final_probability'].std():.3f}")
+
+
+## Confidence Check: Prediction Probability Distribution ##
+# Create DataFrame with classification categories
+classification_results = valid_results.copy()
+classification_results['category'] = 'NA'
+
+# Assign categories
+classification_results.loc[(classification_results['ground_truth'] == 1) & (classification_results['prediction'] == 1), 'category'] = 'TP'
+classification_results.loc[(classification_results['ground_truth'] == 0) & (classification_results['prediction'] == 1), 'category'] = 'FP'
+classification_results.loc[(classification_results['ground_truth'] == 0) & (classification_results['prediction'] == 0), 'category'] = 'TN'
+classification_results.loc[(classification_results['ground_truth'] == 1) & (classification_results['prediction'] == 0), 'category'] = 'FN'
+
+# Select relevant columns
+final_df = classification_results[['ClinicalNoteKey', 'category', 'final_probability']]
+
+# Print the first few rows of the new DataFrame
+print("\nNew DataFrame with classifications:")
+print(final_df.head())
+
+# Create the plot
+plt.figure(figsize=(12, 6))
+sns.boxplot(x='category', y='final_probability', data=final_df)
+sns.stripplot(x='category', y='final_probability', data=final_df, color='red', alpha=0.3)
+
+plt.title('Distribution of Probabilities by Classification Category')
+plt.xlabel('Category')
+plt.ylabel('Probability')
+
+# Print summary statistics for each category
+print("\nProbability Statistics by Category:")
+print(final_df.groupby('category')['final_probability'].describe())
+
+plt.show()
+
+# Alternative: Create separate histograms
+plt.figure(figsize=(12, 8))
+for i, category in enumerate(['TP', 'FP', 'TN', 'FN'], 1):
+    plt.subplot(2, 2, i)
+    category_data = final_df[final_df['category'] == category]
+    sns.histplot(data=category_data, x='final_probability', bins=10)
+    plt.title(f'{category} Probability Distribution')
+    plt.xlabel('Probability')
+    plt.ylabel('Count')
+
+plt.tight_layout()
+plt.show()
+
+
+## Generate Counts by Confidence Bin ##
+# Create histogram with all probabilities
+plt.figure(figsize=(12, 6))
+
+# Plot overall distribution
+sns.histplot(data=final_df, x='final_probability', bins=30, color='lightgray', alpha=0.5)
+
+# First overlay false positives in blue
+fp_data = final_df[final_df['category'] == 'FP']
+plt.scatter(fp_data['final_probability'], 
+           [0]*len(fp_data),
+           color='blue', 
+           label='False Positives',
+           s=100,
+           alpha=0.6)
+
+# Then overlay false negatives in red (so they appear on top)
+fn_data = final_df[final_df['category'] == 'FN']
+plt.scatter(fn_data['final_probability'], 
+           [0]*len(fn_data),
+           color='red', 
+           label='False Negatives',
+           s=100,
+           alpha=0.6)
+
+plt.title('Distribution of Probabilities with FN and FP Highlighted')
+plt.xlabel('Probability')
+plt.ylabel('Count')
+
+# Add vertical lines for potential thresholds
+plt.axvline(final_df['final_probability'].median(), 
+           color='black', 
+           linestyle='--', 
+           label='Median')
+
+plt.axvline(final_df['final_probability'].quantile(0.25), 
+           color='green', 
+           linestyle='--', 
+           label='25th Percentile')
+
+plt.legend()
+plt.show()
+
+# Print summary statistics
+print("\nOverall Probability Statistics:")
+print(f"Minimum: {final_df['final_probability'].min():.3f}")
+print(f"25th Percentile: {final_df['final_probability'].quantile(0.25):.3f}")
+print(f"Median: {final_df['final_probability'].median():.3f}")
+print(f"75th Percentile: {final_df['final_probability'].quantile(0.75):.3f}")
+print(f"Maximum: {final_df['final_probability'].max():.3f}")
+
+print("\nFalse Negative Probability Statistics:")
+print(fn_data['final_probability'].describe())
+
+print("\nFalse Positive Probability Statistics:")
+print(fp_data['final_probability'].describe())
+
+# Create bin ranges
+bins = np.arange(0, 1.1, 0.1)  # Creates bins 0-0.1, 0.1-0.2, etc.
+labels = [f'{bins[i]:.1f}-{bins[i+1]:.1f}' for i in range(len(bins)-1)]
+
+# Add bin column to DataFrame
+final_df['prob_bin'] = pd.cut(final_df['final_probability'], bins=bins, labels=labels)
+
+# Create cross-tabulation
+bin_counts = pd.crosstab(final_df['prob_bin'], final_df['category'])
+
+# Add a total row
+bin_counts.loc['Total'] = bin_counts.sum()
+
+# Add a total column
+bin_counts['Total'] = bin_counts.sum(axis=1)
+
+print("\nCounts by Probability Range:")
+print(bin_counts)
+
+# Print percentages for each category
+print("\nPercentages by Category:")
+percentages = bin_counts.div(bin_counts.loc['Total']).multiply(100)
+print(percentages.round(1))
+
+
+## Person Level Performance ##
+expt0 = inf_og
+
+# Create DataFrame
+results = pd.DataFrame(expt0)
+
+# Convert 'tested' value to binary
+results['ground_truth'] = np.where(results['tested'] == 'required', 1, 0)
+
+# Define regex patterns
+dont_recommend_patterns = r"testing\": \"not recommended"
+recommend_patterns = r"testing\": \"recommended"
+
+# Function to determine prediction
+def get_prediction(response):
+    if re.search(recommend_patterns, response, re.IGNORECASE):
+        return 'required'
+    elif re.search(dont_recommend_patterns, response, re.IGNORECASE):
+        return 'none'
+    else:
+        return 'undetermined'
+
+# Apply prediction function
+results['prediction'] = results['response'].apply(get_prediction)
+
+# Calculate group predictions
+grouped = results.groupby('id')
+results['recommended_prediction'] = grouped['prediction'].transform(lambda x: (x == 'required').mean())
+results['notrecommended_prediction'] = grouped['prediction'].transform(lambda x: (x == 'none').mean())
+
+# Create consensus and conservative labels
+results['consensus_label'] = (results['recommended_prediction'] >= results['notrecommended_prediction']).astype(int)
+results['conservative_label'] = (results['recommended_prediction'] > 0).astype(int)
+
+# Create summary DataFrame
+summary_df = results.drop(columns=['response', 'prediction']).drop_duplicates(subset=['id']).reset_index(drop=True)
+
+# Print statistics
+print(f"\nShape of the summary DataFrame: {summary_df.shape}")
+print(f"Number of conservative recommendations: {summary_df['conservative_label'].sum()}")
+print(f"Number of consensus recommendations: {summary_df['consensus_label'].sum()}")
+print(f"Number of required tests (ground truth): {summary_df['ground_truth'].sum()}")
+
+# Calculate matches and accuracy
+matches = (summary_df['consensus_label'] == summary_df['ground_truth']).sum()
+mismatches = (summary_df['consensus_label'] != summary_df['ground_truth']).sum()
+accuracy = matches / len(summary_df)
+
+print(f"\nMatches with ground truth: {matches}")
+print(f"Mismatches with ground truth: {mismatches}")
+print(f"Accuracy: {accuracy:.4f}")
+
+# Calculate confusion matrix metrics
+true_positives = ((summary_df['ground_truth'] == 1) & (summary_df['consensus_label'] == 1)).sum()
+false_positives = ((summary_df['ground_truth'] == 0) & (summary_df['consensus_label'] == 1)).sum()
+true_negatives = ((summary_df['ground_truth'] == 0) & (summary_df['consensus_label'] == 0)).sum()
+false_negatives = ((summary_df['ground_truth'] == 1) & (summary_df['consensus_label'] == 0)).sum()
+
+print(f"\nConfusion Matrix:")
+print(f"True Positives: {true_positives}")
+print(f"False Positives: {false_positives}")
+print(f"True Negatives: {true_negatives}")
+print(f"False Negatives: {false_negatives}")
+
+# Calculate performance metrics
+precision = true_positives / (true_positives + false_positives)
+recall = true_positives / (true_positives + false_negatives)
+f1_score = 2 * (precision * recall) / (precision + recall)
+beta = 3
+f3_score = (1 + beta**2) * (precision * recall) / ((beta**2 * precision) + recall)
+
+print(f"\nPerformance Metrics:")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1_score:.4f}")
+print(f"F3 Score: {f3_score:.4f}")
+
+# Get IDs for each category
+tp_ids = summary_df[(summary_df['ground_truth'] == 1) & (summary_df['consensus_label'] == 1)]['id']
+fp_ids = summary_df[(summary_df['ground_truth'] == 0) & (summary_df['consensus_label'] == 1)]['id']
+tn_ids = summary_df[(summary_df['ground_truth'] == 0) & (summary_df['consensus_label'] == 0)]['id']
+fn_ids = summary_df[(summary_df['ground_truth'] == 1) & (summary_df['consensus_label'] == 0)]['id']
+
+# Print IDs for each category
+for category, ids in [('True Positive', tp_ids), ('False Positive', fp_ids), 
+                     ('True Negative', tn_ids), ('False Negative', fn_ids)]:
+    print(f"\n{category} IDs:")
+    print(list(ids))
+    print(f"Number of {category}s: {len(ids)}")
+
+# Create classification DataFrame
+classification_df = pd.DataFrame({
+    'id': list(tp_ids) + list(fp_ids) + list(tn_ids) + list(fn_ids),
+    'classification': ['TP']*len(tp_ids) + ['FP']*len(fp_ids) + 
+                     ['TN']*len(tn_ids) + ['FN']*len(fn_ids)
+})
+
+# Add correct column
+classification_df['correct'] = classification_df['classification'].map({'TP': 1, 'TN': 1, 'FP': 0, 'FN': 0})
+
+print("\nClassification Summary:")
+print(classification_df)
+print("\nCount of correct and incorrect predictions:")
+print(classification_df['correct'].value_counts())
+
+# Optional: Probability analysis if 'final_probability' exists in results
+if 'final_probability' in results.columns:
+    print("\nProbability Analysis:")
+    print(f"Mean probability: {results['final_probability'].mean():.3f}")
+    print(f"Median probability: {results['final_probability'].median():.3f}")
+    print(f"Standard deviation: {results['final_probability'].std():.3f}")
+
+
+## Thresholding for Run Through Custom Model ##
+
+# Create confidence based dataframes
+low_confidence = valid_results[valid_results['final_probability'] < 0.5]
+high_confidence = valid_results[valid_results['final_probability'] >= 0.5]
+
+# Get the list of low confidence person IDs
+low_conf_ids = set(low_confidence['id'])
+
+# Get the list of low confidence notes
+low_conf_clinicalnotekeys = set(low_confidence['ClinicalNoteKey'])
+high_conf_clinicalnotekeys = set(high_confidence['ClinicalNoteKey'])
+
+
+# Analysis for False Negatives person IDs
+fn_low_conf_ids = len([id for id in fn_ids if id in low_conf_ids])
+
+print(f"\nAnalysis of False Negatives with Low Confidence:")
+print(f"Total False Negatives IDs: {len(fn_ids)}")
+print(f"False Negatives IDs with probability < 0.5: {fn_low_conf_ids}")
+print(f"Percentage of False Negatives with low confidence: {(fn_low_conf_ids/len(fn_ids)*100):.2f}%")
+print(f"Total Low Confidence notes: {len(low_conf_clinicalnotekeys)}")
+print(f"Total High Confidence notes: {len(high_conf_clinicalnotekeys)}")
+print(f"Total Low Confidence patients: {len(low_conf_ids)}")
+
+
+## Per Person Breakdown of Notes Below and Above Threshold ##
+# false negative classified patients: breakdown by probability
+
+low_confidence = valid_results[valid_results['final_probability'] < 0.5]
+high_confidence = valid_results[valid_results['final_probability'] >= 0.5]
+
+# Initialize results dictionary - false negatives
+fn_confidence_distribution = {}
+
+# For each false negative ID
+for fn_id in fn_ids:
+    # Get all notes for this ID
+    id_notes_low = len(low_confidence[low_confidence['id'] == fn_id])
+    id_notes_high = len(high_confidence[high_confidence['id'] == fn_id])
+    total_notes = id_notes_low + id_notes_high
+    
+    if total_notes > 0:  # Avoid division by zero
+        proportion_low = id_notes_low / total_notes
+        proportion_high = id_notes_high / total_notes
+    else:
+        proportion_low = proportion_high = 0
+        
+    fn_confidence_distribution[fn_id] = {
+        'total_notes': total_notes,
+        'notes_below_0.5': id_notes_low,
+        'notes_above_0.5': id_notes_high,
+        'proportion_below_0.5': proportion_low,
+        'proportion_above_0.5': proportion_high
+    }
+
+# Print results
+print("\nAnalysis of note confidences for each False Negative ID:")
+for fn_id, stats in fn_confidence_distribution.items():
+    print(f"\nID: {fn_id}")
+    print(f"Total notes: {stats['total_notes']}")
+    print(f"Notes below 0.5 confidence: {stats['notes_below_0.5']} ({stats['proportion_below_0.5']*100:.1f}%)")
+    print(f"Notes above 0.5 confidence: {stats['notes_above_0.5']} ({stats['proportion_above_0.5']*100:.1f}%)")
+
+# summary dataframe
+import pandas as pd
+fn_summary = pd.DataFrame.from_dict(fn_confidence_distribution, orient='index')
+print("\nSummary DataFrame:")
+print(fn_summary)
+
+
+# Initialize results dictionary - false positives
+fp_confidence_distribution = {}
+
+# For each false positive ID
+for fp_id in fp_ids:
+    # Get all notes for this ID
+    id_notes_low = len(low_confidence[low_confidence['id'] == fp_id])
+    id_notes_high = len(high_confidence[high_confidence['id'] == fp_id])
+    total_notes = id_notes_low + id_notes_high
+    
+    if total_notes > 0:  # Avoid division by zero
+        proportion_low = id_notes_low / total_notes
+        proportion_high = id_notes_high / total_notes
+    else:
+        proportion_low = proportion_high = 0
+        
+    fp_confidence_distribution[fp_id] = {
+        'total_notes': total_notes,
+        'notes_below_0.5': id_notes_low,
+        'notes_above_0.5': id_notes_high,
+        'proportion_below_0.5': proportion_low,
+        'proportion_above_0.5': proportion_high
+    }
+
+# Print results
+print("\nAnalysis of note confidences for each False Positive ID:")
+for fp_id, stats in fp_confidence_distribution.items():
+    print(f"\nID: {fp_id}")
+    print(f"Total notes: {stats['total_notes']}")
+    print(f"Notes below 0.5 confidence: {stats['notes_below_0.5']} ({stats['proportion_below_0.5']*100:.1f}%)")
+    print(f"Notes above 0.5 confidence: {stats['notes_above_0.5']} ({stats['proportion_above_0.5']*100:.1f}%)")
+
+# summary dataframe
+import pandas as pd
+fp_summary = pd.DataFrame.from_dict(fp_confidence_distribution, orient='index')
+print("\nSummary DataFrame:")
+print(fp_summary)
+
+
+## Identify IDs to Run through Custom Model ##
+# # Subset the prompts_data to only include entries with IDs in low_conf_ids
+# # Filter the list of dictionaries using list comprehension
+df_prompts = pd.DataFrame(prompts_data)
+
+# Get the set of low confidence ClinicalNoteKeys
+low_conf_notes = set(low_confidence['ClinicalNoteKey'])
+
+# Filter using isin with the set of ClinicalNoteKeys
+low_conf_notes_only = df_prompts[df_prompts['ClinicalNoteKey'].isin(low_conf_notes)]
+
+print(f"Original dataset size: {len(df_prompts)}")
+print(f"Low confidence number of notes: {len(low_conf_notes_only)}") 
+# note: this is not all notes pertaining to low confidence patients
+
+# Create DataFrame with only id and ClinicalNoteKey columns
+id_notekey_df = low_conf_notes_only[['id', 'ClinicalNoteKey']]
+
+# Display the DataFrame
+print("\nDataFrame of IDs and ClinicalNoteKeys:")
+print(id_notekey_df)
+
+# Also print the shape of the DataFrame
+print(f"\nShape of DataFrame: {id_notekey_df.shape}")
+
+# save df 
+id_notekey_df.to_csv("/Volumes/biobank_analytics/verma_lab/llm_udd_aortopathy/low_conf_notes.csv", index=False)
+
+
+## Load Augmented Prompts from RAG ##
+# load JSON data
+with open("/Volumes/biobank_analytics/verma_lab/llm_udd_aortopathy/final_subset50_set1_cases_102324_timefiltered_0.5weight_RAG_k5_output.json", "r") as file:
+    rag_augmented_data = json.load(file)
+rag_augmented_data
+
+# subset data for testing
+rag_augmented_data_subset = random.sample(rag_augmented_data, k=5)
+rag_augmented_data_subset
+
+# < inference with RAG and evaluation steps to be continued.. > #
