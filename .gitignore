@@ -1,3 +1,5 @@
+*.pptx
+.DS_Store
 embedding/
 tmp/
 !.data/datasets/raw/marfan_notes.json
