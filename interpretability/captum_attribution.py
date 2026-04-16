@@ -12,7 +12,7 @@ from sklearn.manifold import TSNE
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from utils.model_utils import load_peft_model
+from finetune.utils.model_utils import load_peft_model
 from peft import get_peft_model, LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from captum.attr import (
