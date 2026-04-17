@@ -16,7 +16,7 @@ Shared configuration imported by all other scripts. Key settings:
 
 | Constant | Value | Description |
 |---|---|---|
-| `SOURCE_DIRECTORY` | `data/docs/txt` | Source documents to ingest |
+| `SOURCE_DIRECTORY` | `rag/corpus/Marfan_Corpus_Grobid` | Source documents to ingest |
 | `PERSIST_DIRECTORY` | `data/db-new` | Where the Chroma vectorstore is saved |
 | `EMBEDDING_MODEL_NAME` | `hkunlp/instructor-large` | HuggingFace embedding model |
 | `DOCUMENT_MAP` | — | Maps file extensions to LangChain loaders |
@@ -80,7 +80,7 @@ python rag/preprocess.py \
 
 ## Running order
 
-1. Place source documents in `data/docs/txt/`
+1. Place source documents in `corpus/Marfan_Corpus_Grobid/` (already populated with KnowledgeBase1 and KnowledgeBase2)
 2. Run `ingest.py` (or `ingestLarge.py` for large collections) to build the vectorstore
 3. Run `preprocess.py` to generate the augmented dataset for fine-tuning
 
