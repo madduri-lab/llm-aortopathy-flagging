@@ -1,4 +1,4 @@
-# LLM-based Aortopathy Flagging
+# 🧬 LLM-based Aortopathy Flagging
 
 **[Leveraging Open-Source Large Language Models to Identify Undiagnosed Patients with Rare Genetic Aortopathies](https://www.medrxiv.org/content/10.1101/2025.09.05.25333227v2)**
 
@@ -19,6 +19,10 @@ The pipeline uses **Llama 3.1-8B-Instruct** as the base model and incorporates:
 
 ## Results
 
+<p align="center">
+  <img src="plot/figures/1-pipeline-performance.png" width="100%"/>
+</p>
+
 Evaluated on 22,510 clinical notes from 500 patients (250 cases, 250 controls) from the Penn Medicine BioBank:
 
 | Level | Accuracy | Sensitivity | Specificity | Precision | F1 | F3 |
@@ -28,9 +32,6 @@ Evaluated on 22,510 clinical notes from 500 patients (250 cases, 250 controls) f
 
 Patient-level aggregation substantially improves over note-level performance, reflecting how longitudinal context supports more robust diagnostic reasoning.
 
-<p align="center">
-  <img src="plot/figures/1-pipeline-performance.png" width="100%"/>
-</p>
 
 ## Repository structure
 
