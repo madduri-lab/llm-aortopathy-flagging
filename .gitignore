@@ -6,7 +6,6 @@ tmp/
 *.json
 !finetune/data/datasets/raw/*.json
 !finetune/data/datasets/rag/*.json
-*.pdf
 *.pt
 *.sh
 !data/docs/grobid.sh
