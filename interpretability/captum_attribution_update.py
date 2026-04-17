@@ -1,9 +1,8 @@
 import os
 import time
+import torch
 import argparse
 import numpy as np
-import torch
-from finetune.utils.model_utils import load_peft_model
 from peft import get_peft_model, LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from captum.attr import (
@@ -14,6 +13,12 @@ from captum.attr import (
     LLMGradientAttribution,
     TextTokenInput,
 )
+
+def load_peft_model(model, peft_model_path):
+    """Load the saved peft model into the based model."""
+    peft_state_dict = torch.load(peft_model_path, map_location="cuda")
+    model.load_state_dict(peft_state_dict, strict=False)
+    return model
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
