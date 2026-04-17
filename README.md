@@ -32,6 +32,10 @@ Evaluated on 22,510 clinical notes from 500 patients (250 cases, 250 controls) f
 
 Patient-level aggregation substantially improves over note-level performance, reflecting how longitudinal context supports more robust diagnostic reasoning.
 
+<p align="center">
+  <img src="plot/figures/4-model-performance.png" width="100%"/>
+</p>
+
 
 ## Repository structure
 
